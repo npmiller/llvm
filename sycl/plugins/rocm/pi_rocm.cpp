@@ -24,6 +24,8 @@
 #include <mutex>
 #include <regex>
 
+#include <string.h>
+
 namespace {
 std::string getHipVersionString() {
   int driver_version = 0;
@@ -216,15 +218,19 @@ pi_result getInfo(size_t param_value_size, void *param_value,
   };
 
   return getInfoImpl(param_value_size, param_value, param_value_size_ret, value,
-                     sizeof(T), assignment);
+                     sizeof(T), std::move(assignment));
 }
 
 template <typename T>
 pi_result getInfoArray(size_t array_length, size_t param_value_size,
                        void *param_value, size_t *param_value_size_ret,
                        T *value) {
+
+  auto assignment = [](void *param_value, T *value, size_t value_size) {
+	  memcpy(param_value, static_cast<const void*>(value), value_size);
+  };
   return getInfoImpl(param_value_size, param_value, param_value_size_ret, value,
-                     array_length * sizeof(T), memcpy);
+                     array_length * sizeof(T), std::move(assignment));
 }
 
 template <>
@@ -1723,12 +1729,12 @@ pi_result rocm_piMemBufferCreate(pi_context context, pi_mem_flags flags,
       pi_mem parentBuffer = nullptr;
 
       auto piMemObj = std::unique_ptr<_pi_mem>(
-          new _pi_mem{context, parentBuffer, allocMode, ptr, host_ptr, size});
+          new _pi_mem{context, parentBuffer, allocMode, (_pi_mem::mem_::mem_::buffer_mem_::native_type)ptr, host_ptr, size});
       if (piMemObj != nullptr) {
         retMemObj = piMemObj.release();
         if (performInitialCopy) {
           // Operates on the default stream of the current HIP context.
-          retErr = PI_CHECK_ERROR(hipMemcpyHtoD(ptr, host_ptr, size));
+          retErr = PI_CHECK_ERROR(hipMemcpyHtoD((_pi_mem::mem_::mem_::buffer_mem_::native_type)ptr, host_ptr, size));
           // Synchronize with default stream implicitly used by cuMemcpyHtoD
           // to make buffer data available on device before any other PI call
           // uses it.
@@ -1781,7 +1787,7 @@ pi_result rocm_piMemRelease(pi_mem memObj) {
       switch (uniqueMemObj->mem_.buffer_mem_.allocMode_) {
       case _pi_mem::mem_::buffer_mem_::alloc_mode::copy_in:
       case _pi_mem::mem_::buffer_mem_::alloc_mode::classic:
-        ret = PI_CHECK_ERROR(hipFree(uniqueMemObj->mem_.buffer_mem_.ptr_));
+        ret = PI_CHECK_ERROR(hipFree((void*)uniqueMemObj->mem_.buffer_mem_.ptr_));
         break;
       case _pi_mem::mem_::buffer_mem_::alloc_mode::use_host_ptr:
         ret = PI_CHECK_ERROR(
@@ -1857,7 +1863,7 @@ pi_result rocm_piMemBufferPartition(pi_mem parent_buffer, pi_mem_flags flags,
   assert(parent_buffer->mem_.buffer_mem_.ptr_ !=
          _pi_mem::mem_::buffer_mem_::native_type{0});
   _pi_mem::mem_::buffer_mem_::native_type ptr =
-      (uint8_t *)(parent_buffer->mem_.buffer_mem_.ptr_) + bufferRegion.origin;
+      (_pi_mem::mem_::buffer_mem_::native_type)((uint8_t *)(parent_buffer->mem_.buffer_mem_.ptr_) + bufferRegion.origin);
 
   void *hostPtr = nullptr;
   if (parent_buffer->mem_.buffer_mem_.hostPtr_) {
@@ -2079,7 +2085,7 @@ pi_result rocm_piEnqueueMemBufferWrite(pi_queue command_queue, pi_mem buffer,
   assert(command_queue != nullptr);
   pi_result retErr = PI_SUCCESS;
   hipStream_t hipStream = command_queue->get();
-  hipDevPtr devPtr = buffer->mem_.buffer_mem_.get();
+  hipDevPtr devPtr = (void*)buffer->mem_.buffer_mem_.get();
   std::unique_ptr<_pi_event> retImplEv{nullptr};
 
   try {
@@ -2095,7 +2101,7 @@ pi_result rocm_piEnqueueMemBufferWrite(pi_queue command_queue, pi_mem buffer,
     }
 
     retErr = PI_CHECK_ERROR(
-        hipMemcpyHtoDAsync((uint8_t *)devPtr + offset, ptr, size, hipStream));
+        hipMemcpyHtoDAsync((_pi_mem::mem_::buffer_mem_::native_type)((uint8_t *)devPtr + offset), ptr, size, hipStream));
 
     if (event) {
       retErr = retImplEv->record();
@@ -2125,7 +2131,7 @@ pi_result rocm_piEnqueueMemBufferRead(pi_queue command_queue, pi_mem buffer,
   assert(command_queue != nullptr);
   pi_result retErr = PI_SUCCESS;
   hipStream_t hipStream = command_queue->get();
-  hipDevPtr devPtr = buffer->mem_.buffer_mem_.get();
+  hipDevPtr devPtr = (void*)buffer->mem_.buffer_mem_.get();
   std::unique_ptr<_pi_event> retImplEv{nullptr};
 
   try {
@@ -2141,7 +2147,7 @@ pi_result rocm_piEnqueueMemBufferRead(pi_queue command_queue, pi_mem buffer,
     }
 
     retErr = PI_CHECK_ERROR(
-        hipMemcpyDtoHAsync(ptr, (uint8_t *)devPtr + offset, size, hipStream));
+        hipMemcpyDtoHAsync(ptr, (_pi_mem::mem_::mem_::buffer_mem_::native_type)((uint8_t *)devPtr + offset), size, hipStream));
 
     if (event) {
       retErr = retImplEv->record();
@@ -2278,7 +2284,7 @@ pi_result rocm_piextKernelSetArgMemObj(pi_kernel kernel, pi_uint32 arg_index,
     } else
 
     {
-      hipDevPtr hipPtr = arg_mem->mem_.buffer_mem_.get();
+      hipDevPtr hipPtr = (void*)arg_mem->mem_.buffer_mem_.get();
       kernel->set_kernel_arg(arg_index, sizeof(hipDevPtr), (void *)&hipPtr);
     }
   } catch (pi_result err) {
@@ -3430,7 +3436,7 @@ pi_result rocm_piEnqueueMemBufferReadRect(
 
   pi_result retErr = PI_SUCCESS;
   hipStream_t hipStream = command_queue->get();
-  hipDevPtr devPtr = buffer->mem_.buffer_mem_.get();
+  hipDevPtr devPtr = (void*)buffer->mem_.buffer_mem_.get();
   std::unique_ptr<_pi_event> retImplEv{nullptr};
 
   try {
@@ -3481,7 +3487,7 @@ pi_result rocm_piEnqueueMemBufferWriteRect(
 
   pi_result retErr = PI_SUCCESS;
   hipStream_t hipStream = command_queue->get();
-  hipDevPtr devPtr = buffer->mem_.buffer_mem_.get();
+  hipDevPtr devPtr = (void*)buffer->mem_.buffer_mem_.get();
   std::unique_ptr<_pi_event> retImplEv{nullptr};
 
   try {
@@ -3580,8 +3586,8 @@ pi_result rocm_piEnqueueMemBufferCopyRect(
 
   pi_result retErr = PI_SUCCESS;
   hipStream_t hipStream = command_queue->get();
-  hipDevPtr srcPtr = src_buffer->mem_.buffer_mem_.get();
-  hipDevPtr dstPtr = dst_buffer->mem_.buffer_mem_.get();
+  hipDevPtr srcPtr = (void*)src_buffer->mem_.buffer_mem_.get();
+  hipDevPtr dstPtr = (void*)dst_buffer->mem_.buffer_mem_.get();
   std::unique_ptr<_pi_event> retImplEv{nullptr};
 
   try {
