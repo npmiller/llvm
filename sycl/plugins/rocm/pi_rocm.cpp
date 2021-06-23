@@ -1797,7 +1797,7 @@ pi_result rocm_piMemRelease(pi_mem memObj) {
       ret = PI_CHECK_ERROR(hipDestroySurfaceObject(
           uniqueMemObj->mem_.surface_mem_.get_surface()));
       auto array = uniqueMemObj->mem_.surface_mem_.get_array();
-      ret = PI_CHECK_ERROR(hipFreeArray(&array));
+      ret = PI_CHECK_ERROR(hipFreeArray(array));
     }
 
   } catch (pi_result err) {
@@ -2265,10 +2265,10 @@ pi_result rocm_piextKernelSetArgMemObj(pi_kernel kernel, pi_uint32 arg_index,
 
     if (arg_mem->mem_type_ == _pi_mem::mem_type::surface) {
       auto array = arg_mem->mem_.surface_mem_.get_array();
-      if (array.Format != HIP_AD_FORMAT_UNSIGNED_INT32 &&
-          array.Format != HIP_AD_FORMAT_SIGNED_INT32 &&
-          array.Format != HIP_AD_FORMAT_HALF &&
-          array.Format != HIP_AD_FORMAT_FLOAT) {
+      if (array->Format != HIP_AD_FORMAT_UNSIGNED_INT32 &&
+          array->Format != HIP_AD_FORMAT_SIGNED_INT32 &&
+          array->Format != HIP_AD_FORMAT_HALF &&
+          array->Format != HIP_AD_FORMAT_FLOAT) {
         cl::sycl::detail::pi::die(
             "PI HIP kernels only support images with channel types int32, "
             "uint32, float, and half.");
@@ -2572,7 +2572,7 @@ pi_result rocm_piMemImageCreate(pi_context context, pi_mem_flags flags,
     retErr = PI_CHECK_ERROR(hipCreateSurfaceObject(&surface, &image_res_desc));
 
     auto piMemObj = std::unique_ptr<_pi_mem>(new _pi_mem{
-        context, *image_array, surface, image_desc->image_type, host_ptr});
+        context, image_array, surface, image_desc->image_type, host_ptr});
 
     if (piMemObj == nullptr) {
       return PI_OUT_OF_HOST_MEMORY;
@@ -3809,12 +3809,12 @@ pi_result rocm_piEnqueueMemImageRead(
                                event_wait_list, nullptr);
     }
 
-    hipArray array = image->mem_.surface_mem_.get_array();
+    hipArray *array = image->mem_.surface_mem_.get_array();
 
-    int elementByteSize = imageElementByteSize(array.Format);
+    int elementByteSize = imageElementByteSize(array->Format);
 
-    size_t byteOffsetX = origin[0] * elementByteSize * array.NumChannels;
-    size_t bytesToCopy = elementByteSize * array.NumChannels * region[0];
+    size_t byteOffsetX = origin[0] * elementByteSize * array->NumChannels;
+    size_t bytesToCopy = elementByteSize * array->NumChannels * region[0];
 
     pi_mem_type imgType = image->mem_.surface_mem_.get_image_type();
 
@@ -3822,7 +3822,7 @@ pi_result rocm_piEnqueueMemImageRead(
     size_t srcOffset[3] = {byteOffsetX, origin[1], origin[2]};
 
     retErr = commonEnqueueMemImageNDCopy(hipStream, imgType, adjustedRegion,
-                                         &array, hipMemoryTypeArray, srcOffset,
+                                         array, hipMemoryTypeArray, srcOffset,
                                          ptr, hipMemoryTypeHost, nullptr);
 
     if (retErr != PI_SUCCESS) {
@@ -3871,12 +3871,12 @@ rocm_piEnqueueMemImageWrite(pi_queue command_queue, pi_mem image,
                                event_wait_list, nullptr);
     }
 
-    hipArray array = image->mem_.surface_mem_.get_array();
+    hipArray *array = image->mem_.surface_mem_.get_array();
 
-    int elementByteSize = imageElementByteSize(array.Format);
+    int elementByteSize = imageElementByteSize(array->Format);
 
-    size_t byteOffsetX = origin[0] * elementByteSize * array.NumChannels;
-    size_t bytesToCopy = elementByteSize * array.NumChannels * region[0];
+    size_t byteOffsetX = origin[0] * elementByteSize * array->NumChannels;
+    size_t bytesToCopy = elementByteSize * array->NumChannels * region[0];
 
     pi_mem_type imgType = image->mem_.surface_mem_.get_image_type();
 
@@ -3885,7 +3885,7 @@ rocm_piEnqueueMemImageWrite(pi_queue command_queue, pi_mem image,
 
     retErr = commonEnqueueMemImageNDCopy(hipStream, imgType, adjustedRegion,
                                          ptr, hipMemoryTypeHost, nullptr,
-                                         &array, hipMemoryTypeArray, dstOffset);
+                                         array, hipMemoryTypeArray, dstOffset);
 
     if (retErr != PI_SUCCESS) {
       return retErr;
@@ -3932,19 +3932,19 @@ pi_result rocm_piEnqueueMemImageCopy(pi_queue command_queue, pi_mem src_image,
                                event_wait_list, nullptr);
     }
 
-    hipArray srcArray = src_image->mem_.surface_mem_.get_array();
-    hipArray dstArray = dst_image->mem_.surface_mem_.get_array();
+    hipArray *srcArray = src_image->mem_.surface_mem_.get_array();
+    hipArray *dstArray = dst_image->mem_.surface_mem_.get_array();
 
-    assert(srcArray.Format == dstArray.Format);
-    assert(srcArray.NumChannels == dstArray.NumChannels);
+    assert(srcArray->Format == dstArray->Format);
+    assert(srcArray->NumChannels == dstArray->NumChannels);
 
-    int elementByteSize = imageElementByteSize(srcArray.Format);
+    int elementByteSize = imageElementByteSize(srcArray->Format);
 
     size_t dstByteOffsetX =
-        dst_origin[0] * elementByteSize * srcArray.NumChannels;
+        dst_origin[0] * elementByteSize * srcArray->NumChannels;
     size_t srcByteOffsetX =
-        src_origin[0] * elementByteSize * dstArray.NumChannels;
-    size_t bytesToCopy = elementByteSize * srcArray.NumChannels * region[0];
+        src_origin[0] * elementByteSize * dstArray->NumChannels;
+    size_t bytesToCopy = elementByteSize * srcArray->NumChannels * region[0];
 
     pi_mem_type imgType = src_image->mem_.surface_mem_.get_image_type();
 
@@ -3953,8 +3953,8 @@ pi_result rocm_piEnqueueMemImageCopy(pi_queue command_queue, pi_mem src_image,
     size_t dstOffset[3] = {dstByteOffsetX, dst_origin[1], dst_origin[2]};
 
     retErr = commonEnqueueMemImageNDCopy(
-        hipStream, imgType, adjustedRegion, &srcArray, hipMemoryTypeArray,
-        srcOffset, &dstArray, hipMemoryTypeArray, dstOffset);
+        hipStream, imgType, adjustedRegion, srcArray, hipMemoryTypeArray,
+        srcOffset, dstArray, hipMemoryTypeArray, dstOffset);
 
     if (retErr != PI_SUCCESS) {
       return retErr;

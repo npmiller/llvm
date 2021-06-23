@@ -279,11 +279,11 @@ struct _pi_mem {
 
     // Handler data for surface object (i.e. Images)
     struct surface_mem_ {
-      hipArray array_;
+      hipArray *array_;
       hipSurfaceObject_t surfObj_;
       pi_mem_type imageType_;
 
-      hipArray get_array() const noexcept { return array_; }
+      hipArray *get_array() const noexcept { return array_; }
 
       hipSurfaceObject_t get_surface() const noexcept { return surfObj_; }
 
@@ -311,7 +311,7 @@ struct _pi_mem {
   };
 
   /// Constructs the PI allocation for an Image object
-  _pi_mem(pi_context ctxt, hipArray array, hipSurfaceObject_t surf,
+  _pi_mem(pi_context ctxt, hipArray *array, hipSurfaceObject_t surf,
           pi_mem_type image_type, void *host_ptr)
       : context_{ctxt}, refCount_{1}, mem_type_{mem_type::surface} {
     mem_.surface_mem_.array_ = array;
