@@ -8,7 +8,7 @@ message(STATUS "Including the PI API ROCM backend.")
 
 # Make imported library global to use it within the project.
 
-set(ROCM_INCLUDE_DIRS "/opt/rocm/hip/include")
+set(ROCM_INCLUDE_DIRS "/opt/rocm/include")
 set(hsa_inc_dir "/opt/rocm/hsa/include")
 
 add_library(pi_rocm SHARED
@@ -26,13 +26,15 @@ set_target_properties(pi_rocm PROPERTIES LINKER_LANGUAGE CXX)
 
 target_include_directories(pi_rocm
         PRIVATE
+        ${CMAKE_BINARY_DIR}/_deps/ocl-headers-src
         ${sycl_inc_dir}
         ${sycl_plugin_dir}
         ${ROCM_INCLUDE_DIRS}
         ${hsa_inc_dir}
 )
+# target_link_libraries(pi_rocm PRIVATE OpenCL-Headers)
 
-target_link_libraries(pi_rocm PUBLIC OpenCL-Headers)
+# target_link_libraries(pi_rocm PUBLIC OpenCL-Headers)
  
 # if(AMD_ROCM)
 #   set(ROCM_ROCM_LIBRARY "/opt/rocm/hip/lib/libamdhip64.so")
@@ -58,8 +60,16 @@ target_link_libraries(pi_rocm PUBLIC OpenCL-Headers)
       INTERFACE_INCLUDE_DIRECTORIES ${CUDA_INCLUDE_DIRS}
   )
 
-  target_link_libraries(pi_rocm PUBLIC OpenCL-Headers cudadrv)
+  add_library(cudart SHARED IMPORTED GLOBAL)
+  set_target_properties(
+    cudart PROPERTIES
+      IMPORTED_LOCATION             ${CUDA_CUDART_LIBRARY}
+      INTERFACE_INCLUDE_DIRECTORIES ${CUDA_INCLUDE_DIRS}
+  )
+
+  target_link_libraries(pi_rocm PUBLIC cudadrv cudart)
   target_compile_definitions(pi_rocm PRIVATE __HIP_PLATFORM_NVCC__)
+  target_compile_options(pi_rocm PRIVATE -Wno-unused-result -Wno-return-type)
 # endif()
 
 add_common_options(pi_rocm)
