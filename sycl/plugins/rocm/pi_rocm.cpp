@@ -274,6 +274,21 @@ void simpleGuessLocalWorkSize(int *threadsPerBlock,
   }
 }
 
+inline void getArrayDesc(hipArray *array, hipArray_Format &format, size_t &channels) {
+#if (defined(__HIP_PLATFORM_HCC__) || defined(__HIP_PLATFORM_AMD__)) && !(defined(__HIP_PLATFORM_NVCC__) || defined(__HIP_PLATFORM_NVIDIA__))
+  format = array->Format;
+  channels = array->NumChannels;
+#elif !(defined(__HIP_PLATFORM_HCC__) || defined(__HIP_PLATFORM_AMD__)) && (defined(__HIP_PLATFORM_NVCC__) || defined(__HIP_PLATFORM_NVIDIA__))
+  CUDA_ARRAY_DESCRIPTOR arrayDesc;
+  cuArrayGetDescriptor(&arrayDesc, (CUarray)array);
+
+  format = arrayDesc.Format;
+  channels = arrayDesc.NumChannels;
+#else
+#error("Must define exactly one of __HIP_PLATFORM_AMD__ or __HIP_PLATFORM_NVIDIA__");
+#endif
+}
+
 } // anonymous namespace
 
 /// ------ Error handling, matching OpenCL plugin semantics.
@@ -2271,10 +2286,13 @@ pi_result rocm_piextKernelSetArgMemObj(pi_kernel kernel, pi_uint32 arg_index,
 
     if (arg_mem->mem_type_ == _pi_mem::mem_type::surface) {
       auto array = arg_mem->mem_.surface_mem_.get_array();
-      if (array->Format != HIP_AD_FORMAT_UNSIGNED_INT32 &&
-          array->Format != HIP_AD_FORMAT_SIGNED_INT32 &&
-          array->Format != HIP_AD_FORMAT_HALF &&
-          array->Format != HIP_AD_FORMAT_FLOAT) {
+      hipArray_Format Format;
+      size_t NumChannels;
+      getArrayDesc(array, Format, NumChannels);
+      if (Format != HIP_AD_FORMAT_UNSIGNED_INT32 &&
+          Format != HIP_AD_FORMAT_SIGNED_INT32 &&
+          Format != HIP_AD_FORMAT_HALF &&
+          Format != HIP_AD_FORMAT_FLOAT) {
         cl::sycl::detail::pi::die(
             "PI HIP kernels only support images with channel types int32, "
             "uint32, float, and half.");
@@ -3817,10 +3835,14 @@ pi_result rocm_piEnqueueMemImageRead(
 
     hipArray *array = image->mem_.surface_mem_.get_array();
 
-    int elementByteSize = imageElementByteSize(array->Format);
+    hipArray_Format Format;
+    size_t NumChannels;
+    getArrayDesc(array, Format, NumChannels);
 
-    size_t byteOffsetX = origin[0] * elementByteSize * array->NumChannels;
-    size_t bytesToCopy = elementByteSize * array->NumChannels * region[0];
+    int elementByteSize = imageElementByteSize(Format);
+
+    size_t byteOffsetX = origin[0] * elementByteSize * NumChannels;
+    size_t bytesToCopy = elementByteSize * NumChannels * region[0];
 
     pi_mem_type imgType = image->mem_.surface_mem_.get_image_type();
 
@@ -3879,10 +3901,14 @@ rocm_piEnqueueMemImageWrite(pi_queue command_queue, pi_mem image,
 
     hipArray *array = image->mem_.surface_mem_.get_array();
 
-    int elementByteSize = imageElementByteSize(array->Format);
+    hipArray_Format Format;
+    size_t NumChannels;
+    getArrayDesc(array, Format, NumChannels);
 
-    size_t byteOffsetX = origin[0] * elementByteSize * array->NumChannels;
-    size_t bytesToCopy = elementByteSize * array->NumChannels * region[0];
+    int elementByteSize = imageElementByteSize(Format);
+
+    size_t byteOffsetX = origin[0] * elementByteSize * NumChannels;
+    size_t bytesToCopy = elementByteSize * NumChannels * region[0];
 
     pi_mem_type imgType = image->mem_.surface_mem_.get_image_type();
 
@@ -3939,18 +3965,25 @@ pi_result rocm_piEnqueueMemImageCopy(pi_queue command_queue, pi_mem src_image,
     }
 
     hipArray *srcArray = src_image->mem_.surface_mem_.get_array();
+    hipArray_Format srcFormat;
+    size_t srcNumChannels;
+    getArrayDesc(srcArray, srcFormat, srcNumChannels);
+
     hipArray *dstArray = dst_image->mem_.surface_mem_.get_array();
+    hipArray_Format dstFormat;
+    size_t dstNumChannels;
+    getArrayDesc(dstArray, dstFormat, dstNumChannels);
 
-    assert(srcArray->Format == dstArray->Format);
-    assert(srcArray->NumChannels == dstArray->NumChannels);
+    assert(srcFormat == dstFormat);
+    assert(srcNumChannels == dstNumChannels);
 
-    int elementByteSize = imageElementByteSize(srcArray->Format);
+    int elementByteSize = imageElementByteSize(srcFormat);
 
     size_t dstByteOffsetX =
-        dst_origin[0] * elementByteSize * srcArray->NumChannels;
+        dst_origin[0] * elementByteSize * srcNumChannels;
     size_t srcByteOffsetX =
-        src_origin[0] * elementByteSize * dstArray->NumChannels;
-    size_t bytesToCopy = elementByteSize * srcArray->NumChannels * region[0];
+        src_origin[0] * elementByteSize * dstNumChannels;
+    size_t bytesToCopy = elementByteSize * srcNumChannels * region[0];
 
     pi_mem_type imgType = src_image->mem_.surface_mem_.get_image_type();
 
