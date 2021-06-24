@@ -3718,7 +3718,7 @@ pi_result rocm_piEnqueueMemBufferFill(pi_queue command_queue, pi_mem buffer,
   }
 }
 
-static size_t imageElementByteSize(enum hipArray_Format array_format) {
+static size_t imageElementByteSize(hipArray_Format array_format) {
   switch (array_format) {
   case HIP_AD_FORMAT_UNSIGNED_INT8:
   case HIP_AD_FORMAT_SIGNED_INT8:
