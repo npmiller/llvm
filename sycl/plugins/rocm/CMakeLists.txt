@@ -7,21 +7,9 @@ message(STATUS "Including the PI API ROCM backend.")
 #find_package(ROCM 4.0 REQUIRED)
 
 # Make imported library global to use it within the project.
-add_library(rocmdrv SHARED IMPORTED GLOBAL)
 
-
-set(ROCM_ROCM_LIBRARY "/opt/rocm/hip/lib/libamdhip64.so")
 set(ROCM_INCLUDE_DIRS "/opt/rocm/hip/include")
 set(hsa_inc_dir "/opt/rocm/hsa/include")
-
-
-add_definitions(-D__HIP_PLATFORM_HCC__)
-
-set_target_properties(
-  rocmdrv PROPERTIES 
-    IMPORTED_LOCATION             ${ROCM_ROCM_LIBRARY}
-    INTERFACE_INCLUDE_DIRECTORIES ${ROCM_INCLUDE_DIRS}
-)
 
 add_library(pi_rocm SHARED
    "${sycl_inc_dir}/CL/sycl/detail/pi.h"
@@ -44,8 +32,35 @@ target_include_directories(pi_rocm
         ${hsa_inc_dir}
 )
 
+target_link_libraries(pi_rocm PUBLIC OpenCL-Headers)
+ 
+# if(AMD_ROCM)
+#   set(ROCM_ROCM_LIBRARY "/opt/rocm/hip/lib/libamdhip64.so")
+#   add_library(rocmdrv SHARED IMPORTED GLOBAL)
+# 
+# 
+#   set_target_properties(
+#     rocmdrv PROPERTIES 
+#       IMPORTED_LOCATION             ${ROCM_ROCM_LIBRARY}
+#       INTERFACE_INCLUDE_DIRECTORIES ${ROCM_INCLUDE_DIRS}
+#   )
+# 
+#   target_link_libraries(pi_rocm PUBLIC rocmdrv)
+#   target_compile_definitions(pi_rocm PRIVATE __HIP_PLATFORM_HCC__)
+# else(NVIDIA_ROCM)
+  find_package(CUDA 11.3 REQUIRED)
 
-target_link_libraries(pi_rocm PUBLIC OpenCL-Headers rocmdrv)
+  add_library(cudadrv SHARED IMPORTED GLOBAL)
+  
+  set_target_properties(
+    cudadrv PROPERTIES
+      IMPORTED_LOCATION             ${CUDA_CUDA_LIBRARY}
+      INTERFACE_INCLUDE_DIRECTORIES ${CUDA_INCLUDE_DIRS}
+  )
+
+  target_link_libraries(pi_rocm PUBLIC OpenCL-Headers cudadrv)
+  target_compile_definitions(pi_rocm PRIVATE __HIP_PLATFORM_NVCC__)
+# endif()
 
 add_common_options(pi_rocm)
 
