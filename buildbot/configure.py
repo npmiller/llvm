@@ -48,14 +48,10 @@ def do_configure(args):
 
     if args.disable_esimd_cpu:
         sycl_build_pi_esimd_cpu = 'OFF'
-    
-    if args.rocm:
-        llvm_targets_to_build += ';AMDGPU'
-        # TODO libclc should be added once,
-        # TODO when we build DPC++ with both CUDA and ROCM support
-        llvm_enable_projects += ';libclc'
-        libclc_targets_to_build = 'amdgcn--;amdgcn--amdhsa'
+
+    if args.rocm_platform:
         sycl_build_pi_rocm = 'ON'
+        llvm_enable_projects += ';libclc'
 
     if args.no_werror:
         sycl_werror = 'OFF'
@@ -103,6 +99,19 @@ def do_configure(args):
         "-DLLVM_ENABLE_LLD={}".format(llvm_enable_lld),
         "-DSYCL_BUILD_PI_ESIMD_CPU={}".format(sycl_build_pi_esimd_cpu)
     ]
+
+    if args.rocm_platform:
+        if args.rocm_platform == 'AMD':
+            llvm_targets_to_build += ';AMDGPU'
+            # TODO libclc should be added once,
+            # TODO when we build DPC++ with both CUDA and ROCM support
+            libclc_targets_to_build = 'amdgcn--;amdgcn--amdhsa'
+            pi_platform="AMD_ROCM"
+        elif args.rocm_platform == 'NVIDIA':
+            llvm_targets_to_build += ';NVPTX'
+            libclc_targets_to_build = 'nvptx64--;nvptx64--nvidiacl'
+            pi_platform="NVIDIA_ROCM"
+        cmake_cmd.extend(["-DSYCL_PI_ROCM_PLATFORM={}".format(pi_platform)])
 
     if args.l0_headers and args.l0_loader:
       cmake_cmd.extend([
@@ -161,7 +170,7 @@ def main():
     parser.add_argument("-t", "--build-type",
                         metavar="BUILD_TYPE", default="Release", help="build type: Debug, Release")
     parser.add_argument("--cuda", action='store_true', help="switch from OpenCL to CUDA")
-    parser.add_argument("--rocm", action='store_true', help="swith from OpenCL to ROCM")
+    parser.add_argument("--rocm_platform", type=str, choices=['AMD', 'NVIDIA'], help="choose ROCM backend from: `AMD` or `NVIDIA`")
     parser.add_argument("--arm", action='store_true', help="build ARM support rather than x86")
     parser.add_argument("--disable-esimd-cpu", action='store_true', help="build without ESIMD_CPU support")
     parser.add_argument("--no-assertions", action='store_true', help="build without assertions")
