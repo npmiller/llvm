@@ -363,7 +363,9 @@ HIPToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
 }
 
 Tool *HIPToolChain::buildLinker() const {
-  assert(getTriple().getArch() == llvm::Triple::amdgcn);
+  assert(getTriple().getArch() == llvm::Triple::amdgcn ||
+         getTriple().getArch() == llvm::Triple::nvptx ||
+         getTriple().getArch() == llvm::Triple::nvptx64);
   if (OK == Action::OFK_SYCL)
     return new tools::AMDGCN::SYCLLinker(*this);
   return new tools::AMDGCN::Linker(*this);
