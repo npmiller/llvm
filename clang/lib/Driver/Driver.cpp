@@ -3903,7 +3903,7 @@ class OffloadingActionBuilder final {
       return BA;
     }
 
-    Action *finalizeAMDHSLOSDependences(Action *Input, const llvm::Triple &TT) {
+    Action *finalizeAMDGCNDependences(Action *Input, const llvm::Triple &TT) {
       auto *BA = C.getDriver().ConstructPhaseAction(
           C, Args, phases::Backend, Input, AssociatedOffloadKind);
 
@@ -4450,15 +4450,13 @@ class OffloadingActionBuilder final {
             FullDeviceLinkAction, PostLinkOutType);
         PostLinkAction->setRTSetsSpecConstants(!isAOT);
 
-        const auto isAMDHSAOS = TT.getOS() == llvm::Triple::AMDHSA;
-        if (isNVPTX && !isAMDHSAOS) {
+        if (isNVPTX) {
           Action *FinAction =
               finalizeNVPTXDependences(PostLinkAction, (*TC)->getTriple());
           WrapperInputs.push_back(FinAction);
-        } else if (isAMDGCN || (isNVPTX && isAMDHSAOS)) {
-          // Use the fact that ROCm can target both AMD and NVIDIA devices.
+        } else if (isAMDGCN) {
           Action *FinAction =
-              finalizeAMDHSLOSDependences(PostLinkAction, (*TC)->getTriple());
+              finalizeAMDGCNDependences(PostLinkAction, (*TC)->getTriple());
           WrapperInputs.push_back(FinAction);
         } else {
           // For SPIRV-based targets - translate to SPIRV then optionally
@@ -7319,11 +7317,6 @@ const ToolChain &Driver::getOffloadingDeviceToolChain(const ArgList &Args,
             break;
           case llvm::Triple::nvptx:
           case llvm::Triple::nvptx64:
-            if (Target.getOS() == llvm::Triple::AMDHSA) {
-              TC = std::make_unique<toolchains::HIPToolChain>(
-                  *this, Target, HostTC, Args, TargetDeviceOffloadKind);
-              break;
-            }
             TC = std::make_unique<toolchains::CudaToolChain>(
               *this, Target, HostTC, Args, TargetDeviceOffloadKind);
             break;
