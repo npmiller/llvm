@@ -44,7 +44,7 @@ if("${SYCL_BUILD_PI_ROCM_PLATFORM}" STREQUAL "AMD")
    target_link_libraries(pi_rocm PUBLIC rocmdrv)
 
    # Set HIP define to select AMD platform
-   target_compile_definitions(pi_rocm PRIVATE __HIP_PLATFORM_HCC__)
+   target_compile_definitions(pi_rocm PRIVATE __HIP_PLATFORM_AMD__)
  elseif("${SYCL_BUILD_PI_ROCM_PLATFORM}" STREQUAL "NVIDIA")
   # Import CUDA libraries
   find_package(CUDA REQUIRED)
@@ -65,7 +65,7 @@ if("${SYCL_BUILD_PI_ROCM_PLATFORM}" STREQUAL "AMD")
   target_link_libraries(pi_rocm PUBLIC cudadrv cudart)
 
   # Set HIP define to select NVIDIA platform
-  target_compile_definitions(pi_rocm PRIVATE __HIP_PLATFORM_NVCC__)
+  target_compile_definitions(pi_rocm PRIVATE __HIP_PLATFORM_NVIDIA__)
 
   # Silence warnings coming from the HIP NVIDIA headers
   target_compile_options(pi_rocm PRIVATE -Wno-unused-result -Wno-return-type)

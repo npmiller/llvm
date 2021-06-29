@@ -27,6 +27,61 @@
 #include <string.h>
 
 namespace {
+// Hipify doesn't support cuArrayGetDescriptor, on AMD the hipArray can just be
+// indexed, but on NVidia it is an opaque type and needs to go through
+// cuArrayGetDescriptor so implement a utility function to get the array
+// properties
+inline void getArrayDesc(hipArray *array, hipArray_Format &format, size_t &channels) {
+#if defined(__HIP_PLATFORM_AMD__)
+  format = array->Format;
+  channels = array->NumChannels;
+#elif defined(__HIP_PLATFORM_NVIDIA__)
+  CUDA_ARRAY_DESCRIPTOR arrayDesc;
+  cuArrayGetDescriptor(&arrayDesc, (CUarray)array);
+
+  format = arrayDesc.Format;
+  channels = arrayDesc.NumChannels;
+#else
+#error("Must define exactly one of __HIP_PLATFORM_AMD__ or __HIP_PLATFORM_NVIDIA__");
+#endif
+}
+
+// NVidia HIP headers guard hipArray3DCreate behind __CUDACC__, this does not
+// seem to be required and we're not using nvcc to build the HIP PI plugin so
+// add the translation function here
+#if defined(__HIP_PLATFORM_NVIDIA__) && !defined(__CUDACC__)
+inline static hipError_t hipArray3DCreate(hiparray* pHandle,
+                                          const HIP_ARRAY3D_DESCRIPTOR* pAllocateArray){
+   return hipCUResultTohipError(cuArray3DCreate(pHandle, pAllocateArray));
+}
+#endif
+
+// hipArray gets turned into cudaArray when using the HIP NVIDIA platform, and
+// some CUDA APIs use cudaArray* and others use CUarray, these two represent the
+// same type, however when building cudaArray appears as an opaque type, so it
+// needs to be explicitly casted to CUarray. In order for this to work for both
+// AMD and NVidia we introduce an second hipArray type that will be CUarray for
+// NVIDIA and hipArray* for AMD so that we can place the explicit casts when
+// necessary for NVIDIA and they will be no-ops for AMD.
+#if defined(__HIP_PLATFORM_NVIDIA__)
+  typedef CUarray hipArray2Ptr;
+#elif defined(__HIP_PLATFORM_AMD__)
+  typedef hipArray* hipArray2Ptr;
+#else
+#error("Must define exactly one of __HIP_PLATFORM_AMD__ or __HIP_PLATFORM_NVIDIA__");
+#endif
+
+// Add missing HIP to CUDA defines
+#if defined(__HIP_PLATFORM_NVIDIA__)
+#define hipMemoryType CUmemorytype
+#define hipMemoryTypeHost CU_MEMORYTYPE_HOST
+#define hipMemoryTypeDevice CU_MEMORYTYPE_DEVICE
+#define hipMemoryTypeArray CU_MEMORYTYPE_ARRAY
+#define hipMemoryTypeUnified CU_MEMORYTYPE_UNIFIED
+#else
+#error("Must define exactly one of __HIP_PLATFORM_AMD__ or __HIP_PLATFORM_NVIDIA__");
+#endif
+
 std::string getHipVersionString() {
   int driver_version = 0;
   if (hipDriverGetVersion(&driver_version) != hipSuccess) {
@@ -273,42 +328,6 @@ void simpleGuessLocalWorkSize(int *threadsPerBlock,
     --threadsPerBlock[0];
   }
 }
-
-inline void getArrayDesc(hipArray *array, hipArray_Format &format, size_t &channels) {
-#if (defined(__HIP_PLATFORM_HCC__) || defined(__HIP_PLATFORM_AMD__)) && !(defined(__HIP_PLATFORM_NVCC__) || defined(__HIP_PLATFORM_NVIDIA__))
-  format = array->Format;
-  channels = array->NumChannels;
-#elif !(defined(__HIP_PLATFORM_HCC__) || defined(__HIP_PLATFORM_AMD__)) && (defined(__HIP_PLATFORM_NVCC__) || defined(__HIP_PLATFORM_NVIDIA__))
-  CUDA_ARRAY_DESCRIPTOR arrayDesc;
-  cuArrayGetDescriptor(&arrayDesc, (CUarray)array);
-
-  format = arrayDesc.Format;
-  channels = arrayDesc.NumChannels;
-#else
-#error("Must define exactly one of __HIP_PLATFORM_AMD__ or __HIP_PLATFORM_NVIDIA__");
-#endif
-}
-
-// NVidia HIP headers guard hipArray3DCreate behind __CUDACC__, this does not seem to be required
-#if !(defined(__HIP_PLATFORM_HCC__) || defined(__HIP_PLATFORM_AMD__)) && (defined(__HIP_PLATFORM_NVCC__) || defined(__HIP_PLATFORM_NVIDIA__)) && !defined(__CUDACC__)
-inline static hipError_t hipArray3DCreate(hiparray* pHandle,
-                                          const HIP_ARRAY3D_DESCRIPTOR* pAllocateArray){
-   return hipCUResultTohipError(cuArray3DCreate(pHandle, pAllocateArray));
-}
-#endif
-
-#if (defined(__HIP_PLATFORM_HCC__) || defined(__HIP_PLATFORM_AMD__)) && !(defined(__HIP_PLATFORM_NVCC__) || defined(__HIP_PLATFORM_NVIDIA__))
-  typedef hipArray* hipArray2Ptr;
-#elif !(defined(__HIP_PLATFORM_HCC__) || defined(__HIP_PLATFORM_AMD__)) && (defined(__HIP_PLATFORM_NVCC__) || defined(__HIP_PLATFORM_NVIDIA__))
-  typedef CUarray hipArray2Ptr;
-#define hipMemoryType CUmemorytype
-#define hipMemoryTypeHost CU_MEMORYTYPE_HOST
-#define hipMemoryTypeDevice CU_MEMORYTYPE_DEVICE
-#define hipMemoryTypeArray CU_MEMORYTYPE_ARRAY
-#define hipMemoryTypeUnified CU_MEMORYTYPE_UNIFIED
-#else
-#error("Must define exactly one of __HIP_PLATFORM_AMD__ or __HIP_PLATFORM_NVIDIA__");
-#endif
 
 } // anonymous namespace
 
@@ -846,12 +865,12 @@ pi_result rocm_piextDeviceSelectBinary(pi_device device,
 
   // Look for an image for the ROCm target, and return the first one that is
   // found
-#if defined(__HIP_PLATFORM_HCC__)
+#if defined(__HIP_PLATFORM_AMD__)
   const char* binary_type = __SYCL_PI_DEVICE_BINARY_TARGET_AMDGCN;
-#elif defined(__HIP_PLATFORM_NVCC__)
+#elif defined(__HIP_PLATFORM_NVIDIA__)
   const char* binary_type = __SYCL_PI_DEVICE_BINARY_TARGET_NVPTX64;
 #else
-#error HIP Platform not set for PI ROCm plugin
+#error("Must define exactly one of __HIP_PLATFORM_AMD__ or __HIP_PLATFORM_NVIDIA__");
 #endif
 
   for (pi_uint32 i = 0; i < num_binaries; i++) {
