@@ -64,9 +64,9 @@ inline static hipError_t hipArray3DCreate(hiparray* pHandle,
 // NVIDIA and hipArray* for AMD so that we can place the explicit casts when
 // necessary for NVIDIA and they will be no-ops for AMD.
 #if defined(__HIP_PLATFORM_NVIDIA__)
-  typedef CUarray hipArray2Ptr;
+  typedef CUarray hipCUarray;
 #elif defined(__HIP_PLATFORM_AMD__)
-  typedef hipArray* hipArray2Ptr;
+  typedef hipArray* hipCUarray;
 #else
 #error("Must define exactly one of __HIP_PLATFORM_AMD__ or __HIP_PLATFORM_NVIDIA__");
 #endif
@@ -2596,7 +2596,8 @@ pi_result rocm_piMemImageCreate(pi_context context, pi_mem_flags flags,
 
   ScopedContext active(context);
   hipArray *image_array;
-  retErr = PI_CHECK_ERROR(hipArray3DCreate(reinterpret_cast<hipArray2Ptr*>(&image_array), &array_desc));
+  retErr = PI_CHECK_ERROR(hipArray3DCreate(
+      reinterpret_cast<hipCUarray *>(&image_array), &array_desc));
 
   try {
     if (performInitialCopy) {
@@ -2610,7 +2611,7 @@ pi_result rocm_piMemImageCreate(pi_context context, pi_mem_flags flags,
         cpy_desc.srcMemoryType = hipMemoryType::hipMemoryTypeHost;
         cpy_desc.srcHost = host_ptr;
         cpy_desc.dstMemoryType = hipMemoryType::hipMemoryTypeArray;
-        cpy_desc.dstArray = reinterpret_cast<hipArray2Ptr>(image_array);
+        cpy_desc.dstArray = reinterpret_cast<hipCUarray>(image_array);
         cpy_desc.WidthInBytes = pixel_size_bytes * image_desc->image_width;
         cpy_desc.Height = image_desc->image_height;
         retErr = PI_CHECK_ERROR(hipMemcpyParam2D(&cpy_desc));
@@ -2620,7 +2621,7 @@ pi_result rocm_piMemImageCreate(pi_context context, pi_mem_flags flags,
         cpy_desc.srcMemoryType = hipMemoryType::hipMemoryTypeHost;
         cpy_desc.srcHost = host_ptr;
         cpy_desc.dstMemoryType = hipMemoryType::hipMemoryTypeArray;
-        cpy_desc.dstArray = reinterpret_cast<hipArray2Ptr>(image_array);
+        cpy_desc.dstArray = reinterpret_cast<hipCUarray>(image_array);
         cpy_desc.WidthInBytes = pixel_size_bytes * image_desc->image_width;
         cpy_desc.Height = image_desc->image_height;
         cpy_desc.Depth = image_desc->image_depth;
@@ -3806,7 +3807,7 @@ static pi_result commonEnqueueMemImageNDCopy(
     cpyDesc.srcMemoryType = src_type;
     if (src_type == hipMemoryTypeArray) {
       cpyDesc.srcArray =
-          reinterpret_cast<hipArray2Ptr>(const_cast<void*>(src_ptr));
+          reinterpret_cast<hipCUarray>(const_cast<void *>(src_ptr));
       cpyDesc.srcXInBytes = src_offset[0];
       cpyDesc.srcY = src_offset[1];
     } else {
@@ -3815,7 +3816,7 @@ static pi_result commonEnqueueMemImageNDCopy(
     cpyDesc.dstMemoryType = dst_type;
     if (dst_type == hipMemoryTypeArray) {
       cpyDesc.dstArray =
-          reinterpret_cast<hipArray2Ptr>(const_cast<void*>(dst_ptr));
+          reinterpret_cast<hipCUarray>(const_cast<void *>(dst_ptr));
       cpyDesc.dstXInBytes = dst_offset[0];
       cpyDesc.dstY = dst_offset[1];
     } else {
@@ -3833,7 +3834,7 @@ static pi_result commonEnqueueMemImageNDCopy(
     cpyDesc.srcMemoryType = src_type;
     if (src_type == hipMemoryTypeArray) {
       cpyDesc.srcArray =
-          reinterpret_cast<hipArray2Ptr>(const_cast<void *>(src_ptr));
+          reinterpret_cast<hipCUarray>(const_cast<void *>(src_ptr));
       cpyDesc.srcXInBytes = src_offset[0];
       cpyDesc.srcY = src_offset[1];
       cpyDesc.srcZ = src_offset[2];
@@ -3842,7 +3843,7 @@ static pi_result commonEnqueueMemImageNDCopy(
     }
     cpyDesc.dstMemoryType = dst_type;
     if (dst_type == hipMemoryTypeArray) {
-      cpyDesc.dstArray = reinterpret_cast<hipArray2Ptr>(dst_ptr);
+      cpyDesc.dstArray = reinterpret_cast<hipCUarray>(dst_ptr);
       cpyDesc.dstXInBytes = dst_offset[0];
       cpyDesc.dstY = dst_offset[1];
       cpyDesc.dstZ = dst_offset[2];
