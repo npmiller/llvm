@@ -844,11 +844,18 @@ pi_result rocm_piextDeviceSelectBinary(pi_device device,
     cl::sycl::detail::pi::die("No binary images in the list");
   }
 
-  // Look for an image for the AMDGCN target, and return the first one that is
+  // Look for an image for the ROCm target, and return the first one that is
   // found
+#if defined(__HIP_PLATFORM_HCC__)
+  const char* binary_type = __SYCL_PI_DEVICE_BINARY_TARGET_AMDGCN;
+#elif defined(__HIP_PLATFORM_NVCC__)
+  const char* binary_type = __SYCL_PI_DEVICE_BINARY_TARGET_NVPTX64;
+#else
+#error HIP Platform not set for PI ROCm plugin
+#endif
+
   for (pi_uint32 i = 0; i < num_binaries; i++) {
-    if (strcmp(binaries[i]->DeviceTargetSpec,
-               __SYCL_PI_DEVICE_BINARY_TARGET_AMDGCN) == 0) {
+    if (strcmp(binaries[i]->DeviceTargetSpec, binary_type) == 0) {
       *selected_binary = i;
       return PI_SUCCESS;
     }
