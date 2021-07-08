@@ -2,6 +2,12 @@
 // RUN: | FileCheck %s --check-prefix=CHECK-LLVM
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %RUN_ON_HOST %t.out
+//
+// Missing __clc__atomic_store_global_4_unordered,
+// __clc__atomic_ustore_global_4_unordered,
+// __clc__atomic_store_global_8_unordered and
+// __clc__atomic_ustore_global_8_unordereud on AMD:
+// XFAIL: rocm_amd
 
 #include <CL/sycl.hpp>
 #include <algorithm>

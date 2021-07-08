@@ -1,5 +1,8 @@
 // RUN: %clangxx -fsycl -fsycl-unnamed-lambda -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %RUN_ON_HOST %t.out
+//
+// Missing __clc_atomic_store_local_4_unordered on AMD
+// XFAIL: rocm_amd
 
 #include <CL/sycl.hpp>
 #include <algorithm>
