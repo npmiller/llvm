@@ -298,6 +298,29 @@ pi_result getInfo<const char *>(size_t param_value_size, void *param_value,
 
 int getAttribute(pi_device device, hipDeviceAttribute_t attribute) {
   int value;
+#if defined(__HIP_PLATFORM_NVIDIA__)
+  // some of the properties we're using are not supported by HIP for NVIDIA so
+  // get them straight from CUDA
+  CUdevice_attribute cuattr = CU_DEVICE_ATTRIBUTE_MAX;
+  switch (attribute) {
+    case hipDeviceAttributeConcurrentManagedAccess:
+      cuattr = CU_DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS;
+      break;
+    case hipDeviceAttributeManagedMemory:
+      cuattr = CU_DEVICE_ATTRIBUTE_MANAGED_MEMORY;
+        break;
+    case hipDeviceAttributePageableMemoryAccess:
+      cuattr = CU_DEVICE_ATTRIBUTE_PAGEABLE_MEMORY_ACCESS;
+        break;
+    default:
+        break;
+  }
+  if (cuattr != CU_DEVICE_ATTRIBUTE_MAX) {
+    cl::sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&value, cuattr, device->get()) == CUDA_SUCCESS);
+    return value;
+  }
+#endif
   cl::sycl::detail::pi::assertion(
       hipDeviceGetAttribute(&value, attribute, device->get()) == hipSuccess);
   return value;
@@ -1030,6 +1053,16 @@ pi_result rocm_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                               device->get()) == hipSuccess);
     bool ifp = (major >= 7);
     return getInfo(param_value_size, param_value, param_value_size_ret, ifp);
+  }
+  case PI_DEVICE_INFO_ATOMIC_64: {
+    int major = 0;
+    cl::sycl::detail::pi::assertion(
+        hipDeviceGetAttribute(&major, hipDeviceAttributeComputeCapabilityMajor,
+                              device->get()) == hipSuccess);
+
+    bool atomic64 = (major >= 6) ? true : false;
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   atomic64);
   }
   case PI_DEVICE_INFO_SUB_GROUP_SIZES_INTEL: {
     int warpSize = 0;
