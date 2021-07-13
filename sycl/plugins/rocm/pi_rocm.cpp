@@ -1643,7 +1643,6 @@ pi_result rocm_piContextCreate(const pi_context_properties *properties,
   // TODO: How to implement context callback?
   assert(pfn_notify == nullptr);
   assert(user_data == nullptr);
-  assert(num_devices == 1);
   // Need input context
   assert(retcontext != nullptr);
   pi_result errcode_ret = PI_SUCCESS;
