@@ -4,6 +4,11 @@
 // RUN:  -fsycl-device-only -S %s -o - | FileCheck %s --check-prefix=CHECK-LLVM-EMU
 // RUN: %clangxx -fsycl -fsycl-unnamed-lambda -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %RUN_ON_HOST %t.out
+//
+// Missing __clc__sync_fetch_and_max_global_8,
+// __clc__sync_fetch_and_umax_global_8, __clc__atomic_uload_global_4_unordered,
+// __clc__atomic_uload_global_8_unordered with AMD:
+// XFAIL: rocm_amd
 
 #include <CL/sycl.hpp>
 #include <algorithm>

@@ -9,6 +9,9 @@
 // RUN: rm -f %t.a
 // RUN: llvm-ar crv %t.a %t1.o
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %t2.o -foffload-static-lib=%t.a -o %t.exe
+//
+// Linking error with AMD:
+// XFAIL: rocm_amd
 
 #include <CL/sycl.hpp>
 #include <iostream>
