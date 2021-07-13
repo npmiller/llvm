@@ -2,6 +2,10 @@
 // RUN: %RUN_ON_HOST %t.out
 // RUN: %clangxx -DRESTRICT_WRITE_ACCESS_TO_CONSTANT_PTR -fsycl -fsycl-targets=%sycl_triple -fsycl-dead-args-optimization %s -o %t1.out
 // RUN: %RUN_ON_HOST %t1.out
+//
+// Hitting an error on AMD "-emit-param-info can't be used with
+// -ir-output-only":
+// XFAIL: rocm_amd
 
 //==--------------- multi_ptr.cpp - SYCL multi_ptr test --------------------==//
 //

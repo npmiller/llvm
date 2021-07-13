@@ -1,5 +1,8 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %RUN_ON_HOST %t.out
+//
+// Missing __clc__atomic_store_global_4_unordered, AMD:
+// XFAIL: rocm_amd
 
 #include <CL/sycl.hpp>
 
