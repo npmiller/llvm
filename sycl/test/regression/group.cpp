@@ -1,7 +1,7 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %RUN_ON_HOST %t.out
 //
-// Hitting an assertion in instruciton lowering on AMD:
+// Hitting an assertion in instruction lowering on AMD:
 // XFAIL: rocm_amd
 
 //==-- group.cpp - Regression tests for cl::sycl::group API bug fixes. -----==//
