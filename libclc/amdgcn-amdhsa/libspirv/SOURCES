@@ -6,6 +6,7 @@ math/sin.cl
 math/sqrt.cl
 math/atan.cl
 math/cbrt.cl
+relational/isnan.cl
 workitem/get_global_size.cl
 workitem/get_local_size.cl
 workitem/get_num_groups.cl
