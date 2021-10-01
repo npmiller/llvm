@@ -8,7 +8,9 @@
 
 void __assert_fail(const char *assertion, const char *file, unsigned int line,
                    const char *function) {
-  printf("%s:%u: %s: Device-side assertion `%s' failed.\n", file, line,
-         function, assertion);
+(void)assertion;
+(void)file;
+(void)line;
+(void)function;
   __builtin_trap();
 }
