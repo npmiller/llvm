@@ -74,6 +74,16 @@ typedef __SIZE_TYPE__ __hip_size_t;
 extern "C" {
 #endif //__cplusplus
 
+#if __SYCL_DEVICE_ONLY__
+__attribute__((weak, noinline)) __device__ void
+__assert_fail(const char *assertion, const char *file, unsigned int line,
+              const char *function) {
+  printf("%s:%u: %s: Device-side assertion `%s' failed.\n", file, line,
+         function, assertion);
+  __builtin_trap();
+}
+#endif
+
 #if __HIP_ENABLE_DEVICE_MALLOC__
 __device__ void *__hip_malloc(__hip_size_t __size);
 __device__ void *__hip_free(void *__ptr);
