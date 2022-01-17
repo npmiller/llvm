@@ -786,6 +786,10 @@ let TargetPrefix = "nvvm" in {
       DefaultAttrsIntrinsic<[llvm_float_ty], [llvm_float_ty], [IntrNoMem]>;
   def int_nvvm_ex2_approx_d : GCCBuiltin<"__nvvm_ex2_approx_d">,
       DefaultAttrsIntrinsic<[llvm_double_ty], [llvm_double_ty], [IntrNoMem]>;
+  def int_nvvm_ex2_approx_h : GCCBuiltin<"__nvvm_ex2_approx_h">,
+      DefaultAttrsIntrinsic<[llvm_half_ty], [llvm_half_ty], [IntrNoMem]>;
+  def int_nvvm_ex2_approx_hx2 : GCCBuiltin<"__nvvm_ex2_approx_hx2">,
+      DefaultAttrsIntrinsic<[llvm_v2f16_ty], [llvm_v2f16_ty], [IntrNoMem]>;
 
   def int_nvvm_lg2_approx_ftz_f : GCCBuiltin<"__nvvm_lg2_approx_ftz_f">,
       DefaultAttrsIntrinsic<[llvm_float_ty], [llvm_float_ty], [IntrNoMem]>;
