@@ -116,7 +116,33 @@ void COFFWriter::layoutSections() {
   }
 }
 
-size_t COFFWriter::finalizeStringTable() {
+// Maximum offsets for different string table entry encodings.
+enum : unsigned { Max7DecimalOffset = 9999999U };
+enum : uint64_t { MaxBase64Offset = 0xFFFFFFFFFULL }; // 64^6, including 0
+
+// Encode a string table entry offset in base 64, padded to 6 chars, and
+// prefixed with a double slash: '//AAAAAA', '//AAAAAB', ...
+// Buffer must be at least 8 bytes large. No terminating null appended.
+static void encodeBase64StringEntry(char *Buffer, uint64_t Value) {
+  assert(Value > Max7DecimalOffset && Value <= MaxBase64Offset &&
+         "Illegal section name encoding for value");
+
+  static const char Alphabet[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                                 "abcdefghijklmnopqrstuvwxyz"
+                                 "0123456789+/";
+
+  Buffer[0] = '/';
+  Buffer[1] = '/';
+
+  char *Ptr = Buffer + 7;
+  for (unsigned i = 0; i < 6; ++i) {
+    unsigned Rem = Value % 64;
+    Value /= 64;
+    *(Ptr--) = Alphabet[Rem];
+  }
+}
+
+Expected<size_t> COFFWriter::finalizeStringTable() {
   for (const auto &S : Obj.getSections())
     if (S.Name.size() > COFF::NameSize)
       StrTabBuilder.add(S.Name);
@@ -129,11 +155,35 @@ size_t COFFWriter::finalizeStringTable() {
 
   for (auto &S : Obj.getMutableSections()) {
     memset(S.Header.Name, 0, sizeof(S.Header.Name));
-    if (S.Name.size() > COFF::NameSize) {
-      snprintf(S.Header.Name, sizeof(S.Header.Name), "/%d",
-               (int)StrTabBuilder.getOffset(S.Name));
-    } else {
+    if (S.Name.size() <= COFF::NameSize) {
+      // short names can go in the field directly
       memcpy(S.Header.Name, S.Name.data(), S.Name.size());
+    } else {
+      // longer names need to go in the string table
+      char str[sizeof(S.Header.Name) + 1];
+      memset(str, 0, sizeof(S.Header.Name) + 1);
+
+      // offset of the section name in the string table
+      size_t offset = StrTabBuilder.getOffset(S.Name);
+
+      if (offset <= Max7DecimalOffset) {
+        // offsets with 7 digits or less are encoded with a / then the number in
+        // ASCII, the snprintf size needs to be one more than the field size as
+        // it adds a null termination character
+        snprintf(str, sizeof(S.Header.Name) + 1, "/%d", (int)offset);
+      } else if (offset <= MaxBase64Offset) {
+        // offsets with more than 7 digits are encoded with two / then the
+        // number in base64
+        encodeBase64StringEntry(str, offset);
+      } else {
+        // the section offset is too large to be correctly encoded
+        return createStringError(object_error::invalid_section_index,
+                                 "COFF string table is greater than 64GB, "
+                                 "unable to encode section name offset");
+      }
+
+      // copy the correctly encoded section name into the header
+      memcpy(S.Header.Name, str, sizeof(S.Header.Name));
     }
   }
   for (auto &S : Obj.getMutableSymbols()) {
@@ -219,7 +269,11 @@ Error COFFWriter::finalize(bool IsBigObj) {
     Obj.PeHeader.CheckSum = 0;
   }
 
-  size_t StrTabSize = finalizeStringTable();
+  Expected<size_t> StrTabSizeOrErr = finalizeStringTable();
+  if (!StrTabSizeOrErr)
+    return StrTabSizeOrErr.takeError();
+
+  size_t StrTabSize = *StrTabSizeOrErr;
 
   size_t PointerToSymbolTable = FileSize;
   // StrTabSize <= 4 is the size of an empty string table, only consisting
