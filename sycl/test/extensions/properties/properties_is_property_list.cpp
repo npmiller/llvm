@@ -44,7 +44,6 @@ int main() {
                 decltype(PropertyList1)>);
 
   // Check is_property_list for runtime properties on object
-  sycl::queue Q;
   auto PropertyList2 = sycl::ext::oneapi::experimental::properties(
       sycl::ext::oneapi::experimental::foo{1},
       sycl::ext::oneapi::experimental::foz{.123f, false});

@@ -16,7 +16,6 @@ int main() {
       EmptyPropertyList
           .get_property<sycl::ext::oneapi::experimental::foo_key>();
 
-  sycl::queue Q;
   auto PopulatedPropertyList = sycl::ext::oneapi::experimental::properties(
       sycl::ext::oneapi::experimental::foz{.0f, true},
       sycl::ext::oneapi::experimental::bar);
