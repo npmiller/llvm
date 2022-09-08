@@ -68,6 +68,37 @@ static bool isNVVMAtomic(const IntrinsicInst *II) {
   }
 }
 
+
+unsigned NVPTXTTIImpl::adjustInliningThreshold(const CallBase *CB) const {
+  // If we have a pointer to private array passed into a function
+  // it will not be optimized out, leaving scratch usage.
+  // Increase the inline threshold to allow inlining in this case.
+  uint64_t AllocaSize = 0;
+  SmallPtrSet<const AllocaInst *, 8> AIVisited;
+  for (Value *PtrArg : CB->args()) {
+    PointerType *Ty = dyn_cast<PointerType>(PtrArg->getType());
+    if (!Ty || (Ty->getAddressSpace() != AMDGPUAS::PRIVATE_ADDRESS &&
+                Ty->getAddressSpace() != AMDGPUAS::FLAT_ADDRESS))
+      continue;
+
+    PtrArg = getUnderlyingObject(PtrArg);
+    if (const AllocaInst *AI = dyn_cast<AllocaInst>(PtrArg)) {
+      if (!AI->isStaticAlloca() || !AIVisited.insert(AI).second)
+        continue;
+      AllocaSize += DL.getTypeAllocSize(AI->getAllocatedType());
+      // If the amount of stack memory is excessive we will not be able
+      // to get rid of the scratch anyway, bail out.
+      if (AllocaSize > ArgAllocaCutoff) {
+        AllocaSize = 0;
+        break;
+      }
+    }
+  }
+  if (AllocaSize)
+    return ArgAllocaCost;
+  return 0;
+}
+
 bool NVPTXTTIImpl::isSourceOfDivergence(const Value *V) {
   // Without inter-procedural analysis, we conservatively assume that arguments
   // to __device__ functions are divergent.
