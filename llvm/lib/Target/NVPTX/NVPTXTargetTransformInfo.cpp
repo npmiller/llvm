@@ -20,6 +20,14 @@ using namespace llvm;
 
 #define DEBUG_TYPE "NVPTXtti"
 
+// If the amount of scratch memory to eliminate exceeds our ability to allocate
+// it into registers we gain nothing by aggressively inlining functions for that
+// heuristic.
+static cl::opt<unsigned>
+    ArgAllocaCutoff("nvptx-inline-arg-alloca-cutoff", cl::Hidden,
+                    cl::init(0),
+                    cl::desc("Maximum alloca size to use for inline cost"));
+
 // Whether the given intrinsic reads threadIdx.x/y/z.
 static bool readsThreadIndex(const IntrinsicInst *II) {
   switch (II->getIntrinsicID()) {
@@ -68,36 +76,6 @@ static bool isNVVMAtomic(const IntrinsicInst *II) {
   }
 }
 
-
-unsigned NVPTXTTIImpl::adjustInliningThreshold(const CallBase *CB) const {
-  // If we have a pointer to private array passed into a function
-  // it will not be optimized out, leaving scratch usage.
-  // Increase the inline threshold to allow inlining in this case.
-  uint64_t AllocaSize = 0;
-  SmallPtrSet<const AllocaInst *, 8> AIVisited;
-  for (Value *PtrArg : CB->args()) {
-    PointerType *Ty = dyn_cast<PointerType>(PtrArg->getType());
-    if (!Ty || (Ty->getAddressSpace() != AMDGPUAS::PRIVATE_ADDRESS &&
-                Ty->getAddressSpace() != AMDGPUAS::FLAT_ADDRESS))
-      continue;
-
-    PtrArg = getUnderlyingObject(PtrArg);
-    if (const AllocaInst *AI = dyn_cast<AllocaInst>(PtrArg)) {
-      if (!AI->isStaticAlloca() || !AIVisited.insert(AI).second)
-        continue;
-      AllocaSize += DL.getTypeAllocSize(AI->getAllocatedType());
-      // If the amount of stack memory is excessive we will not be able
-      // to get rid of the scratch anyway, bail out.
-      if (AllocaSize > ArgAllocaCutoff) {
-        AllocaSize = 0;
-        break;
-      }
-    }
-  }
-  if (AllocaSize)
-    return ArgAllocaCost;
-  return 0;
-}
 
 bool NVPTXTTIImpl::isSourceOfDivergence(const Value *V) {
   // Without inter-procedural analysis, we conservatively assume that arguments
@@ -450,6 +428,39 @@ NVPTXTTIImpl::instCombineIntrinsic(InstCombiner &IC, IntrinsicInst &II) const {
     return I;
   }
   return None;
+}
+
+unsigned NVPTXTTIImpl::adjustInliningThreshold(const CallBase *CB) const {
+  // If we have a pointer to private array passed into a function
+  // it will not be optimized out, leaving scratch usage.
+  // Increase the inline threshold to allow inlining in this case.
+  uint64_t AllocaSize = 0;
+  SmallPtrSet<const AllocaInst *, 8> AIVisited;
+  for (Value *PtrArg : CB->args()) {
+    PointerType *Ty = dyn_cast<PointerType>(PtrArg->getType());
+    if (!Ty || (Ty->getAddressSpace() != AddressSpace::ADDRESS_SPACE_GENERIC &&
+                Ty->getAddressSpace() != AddressSpace::ADDRESS_SPACE_SHARED)) {
+      continue;
+    }
+
+    PtrArg = getUnderlyingObject(PtrArg);
+    if (const AllocaInst *AI = dyn_cast<AllocaInst>(PtrArg)) {
+      if (!AI->isStaticAlloca() || !AIVisited.insert(AI).second)
+        continue;
+      AllocaSize += DL.getTypeAllocSize(AI->getAllocatedType());
+      // If the amount of stack memory is excessive we will not be able
+      // to get rid of the scratch anyway, bail out.
+      if (AllocaSize > ArgAllocaCutoff) {
+        /* printf("Too much stack?\n"); */
+        AllocaSize = 0;
+        break;
+      }
+    }
+  }
+  if (AllocaSize) {
+    return 4000;
+  }
+  return 0;
 }
 
 InstructionCost NVPTXTTIImpl::getArithmeticInstrCost(

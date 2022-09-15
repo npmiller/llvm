@@ -607,6 +607,7 @@ class InlineCostCallAnalyzer final : public CallAnalyzer {
   /// Handle a capped 'int' increment for Cost.
   void addCost(int64_t Inc) {
     Inc = std::max<int64_t>(std::min<int64_t>(INT_MAX, Inc), INT_MIN);
+    LLVM_DEBUG(dbgs() << "addCost: " << Inc << "\n");
     Cost = std::max<int64_t>(std::min<int64_t>(INT_MAX, Inc + Cost), INT_MIN);
   }
 
