@@ -797,6 +797,9 @@ class SingleDeviceFunctionTracker {
         assert(!KernelBody && "inconsistent call graph - only one kernel body "
                               "function can be called");
         KernelBody = CurrentDecl;
+        KernelBody->addAttr(AlwaysInlineAttr::CreateImplicit(
+            CurrentDecl->getASTContext(), {}, AttributeCommonInfo::AS_Keyword,
+            AlwaysInlineAttr::Keyword_forceinline));
       } else if (CallStack.size() == 2 && KernelBody == CallStack.back()) {
         // To implement rounding-up of a parallel-for range the
         // SYCL header implementation modifies the kernel call like this:
