@@ -170,6 +170,19 @@ set(sycl_plugin_dir ${CMAKE_CURRENT_SOURCE_DIR}/plugins)
 string(TIMESTAMP __SYCL_COMPILER_VERSION "%Y%m%d")
 set(version_header "${sycl_inc_dir}/sycl/version.hpp")
 configure_file("${version_header}.in" "${version_header}")
+
+# Configure backend macros
+list(FIND LLVM_TARGETS_TO_BUILD "NVPTX" HAS_NVPTX)
+list(FIND LIBCLC_TARGETS_TO_BUILD "nvptx64--nvidiacl" HAS_PTX_LIBCLC)
+if(${HAS_NVPTX} AND ${HAS_PTX_LIBCLC})
+  set(SYCL_HAS_DPCPP_NVPTX TRUE)
+endif()
+
+list(FIND LLVM_TARGETS_TO_BUILD "AMDGCN" HAS_AMDGCN)
+list(FIND LIBCLC_TARGETS_TO_BUILD "amdgcn--amdhsa" HAS_GCN_LIBCLC)
+if(${HAS_AMDGCN} AND ${HAS_GCN_LIBCLC} AND TARGET lld)
+  set(SYCL_HAS_DPCPP_AMDGCN TRUE)
+endif()
 set(feature_header "${sycl_inc_dir}/sycl/feature_test.hpp")
 configure_file("${feature_header}.in" "${feature_header}")
 
