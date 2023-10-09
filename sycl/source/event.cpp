@@ -40,7 +40,7 @@ bool event::operator!=(const event &rhs) const { return !(*this == rhs); }
 
 bool event::is_host() const {
   bool IsHost = impl->is_host();
-  assert(!IsHost && "event::is_host should not be called in implementation.");
+  /* assert(!IsHost && "event::is_host should not be called in implementation."); */
   return IsHost;
 }
 

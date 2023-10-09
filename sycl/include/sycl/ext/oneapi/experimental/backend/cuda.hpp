@@ -25,7 +25,8 @@ inline __SYCL_EXPORT device make_device(pi_native_handle NativeHandle) {
 
 // Implementation of cuda::has_native_event
 inline __SYCL_EXPORT bool has_native_event(event sycl_event) {
-  if (sycl_event.get_backend() == backend::ext_oneapi_cuda)
+  if (!sycl_event.is_host() &&
+      sycl_event.get_backend() == backend::ext_oneapi_cuda)
     return get_native<backend::ext_oneapi_cuda>(sycl_event) != nullptr;
 
   return false;

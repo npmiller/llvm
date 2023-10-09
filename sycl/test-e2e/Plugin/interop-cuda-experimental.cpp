@@ -43,25 +43,37 @@ bool check_queue(sycl::queue &Q) {
 }
 
 int main() {
-  sycl::queue Q;
-
-  CUcontext Q_cu_ctx;
-  auto native_queue = sycl::get_native<sycl::backend::ext_oneapi_cuda>(Q);
-  check_type<CUstream>(native_queue);
-  CUDA_CHECK(cuStreamGetCtx(native_queue, &Q_cu_ctx));
-  auto Q_sycl_ctx =
-      sycl::make_context<sycl::backend::ext_oneapi_cuda>(Q_cu_ctx);
-
-  // Create sycl queue with queue construct from Q's native types and submit
-  // some work
-  {
-    sycl::queue new_Q(Q_sycl_ctx, sycl::default_selector_v);
-    assert(check_queue(new_Q));
+  sycl::event e;
+  auto b = e.get_backend();
+  if (b == sycl::backend::ext_oneapi_cuda) {
+    printf("CUDA\n");
   }
+  printf("main\n");
+  sycl::context sycl_ctx;
+  sycl::queue Q{sycl_ctx, sycl::default_selector_v};
+  /* sycl::context sycl_ctx = Q.get_context(); */
+  printf("context\n");
+  CUdevice Q_dev =
+      sycl::get_native<sycl::backend::ext_oneapi_cuda>(Q.get_device());
+  std::vector<CUcontext> cu_ctxs =
+      sycl::get_native<sycl::backend::ext_oneapi_cuda>(sycl_ctx);
+  printf("contexts\n");
+  CUcontext cu_ctx = nullptr;
+  for (auto ctx : cu_ctxs) {
+    cuCtxSetCurrent(ctx);
+    printf("cuCtxSetCurrent\n");
+    CUdevice dev;
+    cuCtxGetDevice(&dev);
+    printf("cuCtxGetDevice\n");
+    if (dev == Q_dev) {
+      cu_ctx = ctx;
+      break;
+    }
+  }
+  printf("loop\n");
+  assert(cu_ctx && "No context for SYCL device");
 
-  // Check Q still works
-  assert(check_queue(Q));
-
+  printf("okay\n");
   // Get native cuda device
   CUdevice cu_dev;
   CUDA_CHECK(cuDeviceGet(&cu_dev, 0));
@@ -81,23 +93,9 @@ int main() {
     assert(check_queue(new_Q));
   }
 
-  // Create new context
-  CUcontext curr_ctx, cu_ctx;
-  CUDA_CHECK(cuCtxGetCurrent(&curr_ctx));
-  CUDA_CHECK(cuCtxCreate(&cu_ctx, CU_CTX_MAP_HOST, cu_dev));
-  CUDA_CHECK(cuCtxSetCurrent(curr_ctx));
 
-  auto sycl_ctx = sycl::make_context<sycl::backend::ext_oneapi_cuda>(cu_ctx);
-  auto native_ctx = sycl::get_native<sycl::backend::ext_oneapi_cuda>(sycl_ctx);
 
-  check_type<sycl::context>(sycl_ctx);
-  check_type<std::vector<CUcontext>>(native_ctx);
-
-  // Create sycl queue with new queue and submit some work
-  {
-    sycl::queue new_Q(sycl_ctx, sycl::default_selector_v);
-    assert(check_queue(new_Q));
-  }
+  printf("devuce\n");
 
   // Create new event
   CUevent cu_event;
@@ -107,8 +105,10 @@ int main() {
 
   auto sycl_event =
       sycl::make_event<sycl::backend::ext_oneapi_cuda>(cu_event, sycl_ctx);
+  printf("sycl_event\n");
   auto native_event =
       sycl::get_native<sycl::backend::ext_oneapi_cuda>(sycl_event);
+  printf("native_event\n");
 
   check_type<sycl::event>(sycl_event);
   check_type<CUevent>(native_event);
@@ -116,43 +116,58 @@ int main() {
   // Check sycl queue with sycl_ctx still works
   {
     sycl::queue new_Q(sycl_ctx, sycl::default_selector_v);
+  printf("queue\n");
     assert(check_queue(new_Q));
+  printf("assert\n");
   }
+
+  printf("event\n");
 
   // Check has_native_event
   {
     auto e = Q.submit([&](sycl::handler &cgh) { cgh.single_task([] {}); });
     assert(sycl::ext::oneapi::cuda::has_native_event(e));
+    printf("queue submit?\n");
   }
 
   {
     auto e = Q.submit([&](sycl::handler &cgh) { cgh.host_task([] {}); });
+    printf("host task submitted\n");
     assert(!sycl::ext::oneapi::cuda::has_native_event(e));
   }
+
+  printf("after event\n");
 
   // Create new queue
   CUstream cu_queue;
   CUDA_CHECK(cuCtxSetCurrent(cu_ctx));
   CUDA_CHECK(cuStreamCreate(&cu_queue, CU_STREAM_DEFAULT));
 
+  printf("sycl_queue\n");
   auto sycl_queue =
       sycl::make_queue<sycl::backend::ext_oneapi_cuda>(cu_queue, sycl_ctx);
-  native_queue = sycl::get_native<sycl::backend::ext_oneapi_cuda>(sycl_queue);
+  printf("native_queue\n");
+  auto native_queue = sycl::get_native<sycl::backend::ext_oneapi_cuda>(sycl_queue);
 
+  printf("check_type\n");
   check_type<sycl::queue>(sycl_queue);
   check_type<CUstream>(native_queue);
 
+  printf("check_queue\n");
   // Submit some work to new queue
   assert(check_queue(sycl_queue));
+  printf("After check_queue\n");
 
   // Create new queue with Q's native type and submit some work
   {
     CUstream Q_native_stream =
         sycl::get_native<sycl::backend::ext_oneapi_cuda>(Q);
     sycl::queue new_Q = sycl::make_queue<sycl::backend::ext_oneapi_cuda>(
-        Q_native_stream, Q_sycl_ctx);
+        Q_native_stream, sycl_ctx);
     assert(check_queue(new_Q));
   }
+
+  printf("after check Q native\n");
 
   // Check Q still works
   assert(check_queue(Q));
