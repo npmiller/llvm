@@ -9,13 +9,9 @@ run-name: E2E on AWS CUDA - ${{ github.event.workflow_run.display_title }}
 # powerful) due to https://github.com/orgs/community/discussions/24616.
 
 on:
-  workflow_run:
-    workflows: [SYCL Pre Commit on Linux]
-    types:
-      - completed
-
-permissions:
-  contents: read
+  pull_request:
+    branches:
+    - sycl
 
 jobs:
   create-check:
