@@ -12,6 +12,9 @@
  * @version v0.12-r0
  *
  */
+
+// AUTO-GENERATED change
+
 #ifndef UR_API_H_INCLUDED
 #define UR_API_H_INCLUDED
 #if defined(__cplusplus)

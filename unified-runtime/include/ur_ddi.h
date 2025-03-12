@@ -12,6 +12,9 @@
  * @version v0.12-r0
  *
  */
+
+// Not marked auto-generated
+
 #ifndef UR_DDI_H_INCLUDED
 #define UR_DDI_H_INCLUDED
 #if defined(__cplusplus)
