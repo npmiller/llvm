@@ -1,6 +1,6 @@
 // REQUIRES: cuda || hip
 
-// DEFINE: %{env_var} = %if cuda %{UR_CUDA_MAX_LOCAL_MEM_SIZE %} %else %{UR_CUDA_MAX_LOCAL_MEM_SIZE%}
+// DEFINE: %{env_var} = %if cuda %{UR_CUDA_MAX_LOCAL_MEM_SIZE %} %else %{UR_HIP_MAX_LOCAL_MEM_SIZE%}
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %{env_var}=0 %t.out 2>&1 | FileCheck --check-prefixes=CHECK-ZERO %s
